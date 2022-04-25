@@ -7,6 +7,20 @@ Performant, minimal React form library
 - Controlled fields like Formik, but fast (every field has it's own context)
 - Excellent Typescript support
 
+<br />
+
+[![npm](https://img.shields.io/npm/v/react-nerd?color=%231E90FF&label=npm&style=for-the-badge)](https://www.npmjs.com/package/react-nerd)
+
+# Installation
+
+```bash
+npm install react-nerd
+```
+
+```bash
+yarn add react-nerd
+```
+
 # Usage
 
 ```tsx
