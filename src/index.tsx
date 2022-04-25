@@ -1,6 +1,8 @@
 import * as React from 'react';
 import deepEqual from 'fast-deep-equal';
 
+type Unwrap<T> = T extends Promise<infer U> ? U : T;
+
 type FieldValidation = any;
 
 type FieldState<Values> = {
@@ -494,7 +496,7 @@ export function createForm<Values>({
       value,
       validation: validation as
         | (ValidateFnReturnType extends Promise<any>
-            ? Awaited<ValidateFnReturnType>
+            ? Unwrap<ValidateFnReturnType>
             : ValidateFnReturnType)
         | undefined,
       setValue,
