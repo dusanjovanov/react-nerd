@@ -9,6 +9,12 @@ Performant, minimal React form library
 
 <br />
 
+**[EXAMPLE AND DEMO](https://codesandbox.io/s/react-nerd-example-qq02w0)**
+
+**[STRESS TEST WITH 500 FIELDS](https://codesandbox.io/s/react-nerd-example-qq02w0)**
+
+<br />
+
 [![npm](https://img.shields.io/npm/v/react-nerd?color=%231E90FF&label=npm&style=for-the-badge)](https://www.npmjs.com/package/react-nerd)
 
 # Installation
