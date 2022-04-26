@@ -11,7 +11,7 @@ Performant, minimal React form library
 
 **[EXAMPLE AND DEMO](https://codesandbox.io/s/react-nerd-example-qq02w0)**
 
-**[STRESS TEST WITH 500 FIELDS](https://codesandbox.io/s/react-nerd-example-qq02w0)**
+**[STRESS TEST WITH 500 FIELDS](https://codesandbox.io/s/react-nerd-stress-test-4smwzv)**
 
 <br />
 
