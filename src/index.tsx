@@ -74,6 +74,11 @@ type FormActions<Values> = {
     isSubmitting?: boolean;
     submitCount?: number;
   }) => void;
+  setValues: (args: {
+    values: Partial<Values>;
+    shouldValidate?: boolean;
+  }) => void;
+  setValidation: (args: { validation: Partial<Validation<Values>> }) => void;
 };
 
 function deepObjectSome(
@@ -114,6 +119,22 @@ function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
   ) as T;
 }
 
+function createFieldStates<Values, FieldName extends keyof Values>(
+  fieldNames: FieldName[],
+  state: State<Values>,
+  cb: (
+    name: FieldName,
+    state: State<Values>[FieldName]
+  ) => State<Values>[FieldName]
+) {
+  const fieldStates: any = {};
+  for (let i = 0; i <= fieldNames.length; i++) {
+    const name = fieldNames[i];
+    fieldStates[name] = cb(name, state[name]);
+  }
+  return fieldStates;
+}
+
 export function createForm<Values>({
   initialValues,
 }: {
@@ -129,6 +150,8 @@ export function createForm<Values>({
       value,
     };
   }
+
+  const getFieldNames = () => Object.keys(initialValues);
 
   const actionsContext = React.createContext<FormActions<Values>>(
     {} as FormActions<Values>
@@ -151,7 +174,7 @@ export function createForm<Values>({
 
   function createValues(state: State<Values>) {
     const values: Values = {} as Values;
-    for (const name of Object.keys(initialValues)) {
+    for (const name of getFieldNames()) {
       values[name as keyof Values] = (state as any)[name].value;
     }
     return values;
@@ -159,7 +182,7 @@ export function createForm<Values>({
 
   function createValidation(state: State<Values>) {
     const validation: Validation<Values> = {} as Validation<Values>;
-    for (const name of Object.keys(initialValues)) {
+    for (const name of getFieldNames()) {
       const v = (state as any)[name].validation;
       if (typeof v !== 'undefined') {
         validation[name as keyof Validation<Values>] = v;
@@ -326,19 +349,21 @@ export function createForm<Values>({
           validation[fieldKeysWithValidateFn[i]] = validationResultsArray[i];
         }
         dispatch(s => {
-          const fieldModels: any = {};
-          for (const name of Object.keys(validation)) {
-            const currentFieldState = (s as any)[name];
-            if (!deepEqual(currentFieldState.validation, validation[name])) {
-              fieldModels[name] = {
-                ...currentFieldState,
-                validation: validation[name],
-              };
-            }
-          }
           return {
             ...s,
-            ...fieldModels,
+            ...createFieldStates(
+              Object.keys(validation) as any,
+              s,
+              (name, fs) => {
+                if (!deepEqual(fs.validation, validation[name])) {
+                  return {
+                    ...fs,
+                    validation: validation[name],
+                  };
+                }
+                return fs;
+              }
+            ),
           };
         });
         return validation;
@@ -407,7 +432,7 @@ export function createForm<Values>({
       }) => {
         const newFieldsState: any = {};
         const newValues: any = {};
-        for (const name of Object.keys(initialValues)) {
+        for (const name of getFieldNames()) {
           const value =
             newState?.values && name in newState.values
               ? (newState.values as any)[name]
@@ -449,6 +474,53 @@ export function createForm<Values>({
       [resetForm]
     );
 
+    const setValues = React.useCallback(
+      ({
+        values,
+        shouldValidate,
+      }: {
+        values: Partial<Values>;
+        shouldValidate?: boolean;
+      }) => {
+        dispatch(s => {
+          return {
+            ...s,
+            ...createFieldStates(Object.keys(values) as any, s, (name, fs) => ({
+              ...fs,
+              value: values[name],
+            })),
+          };
+        });
+        const willValidate =
+          shouldValidate === undefined
+            ? validateOnChangeRef.current
+            : shouldValidate;
+        if (willValidate) {
+          validateAllFields();
+        }
+      },
+      [validateAllFields]
+    );
+
+    const setValidation = React.useCallback(
+      ({ validation }: { validation: Partial<Validation<Values>> }) => {
+        dispatch(s => {
+          return {
+            ...s,
+            ...createFieldStates(
+              Object.keys(validation) as any,
+              s,
+              (name, fs) => ({
+                ...fs,
+                validation: validation[name],
+              })
+            ),
+          };
+        });
+      },
+      []
+    );
+
     const register = React.useCallback(
       <FieldName extends keyof Values>(name: FieldName, reg: any) => {
         fields.current[name] = reg;
@@ -467,6 +539,8 @@ export function createForm<Values>({
         submitForm,
         handleReset,
         resetForm,
+        setValues,
+        setValidation,
       }),
       [
         setFieldValue,
@@ -478,6 +552,8 @@ export function createForm<Values>({
         submitForm,
         handleReset,
         resetForm,
+        setValues,
+        setValidation,
       ]
     );
 
