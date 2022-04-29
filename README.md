@@ -1,6 +1,6 @@
 # ReactNerd
 
-# 🤓
+![React nerd logo](https://raw.githubusercontent.com/dusanjovanov/react-nerd/master/logo.png 'React nerd logo')
 
 Performant, minimal React form library
 
