@@ -345,7 +345,7 @@ export function createForm<Values>({
       try {
         const validationResultsArray = await Promise.all(promises);
         const validation: any = {};
-        for (let i = 0; i++; i < fieldKeysWithValidateFn.length) {
+        for (let i = 0; i < fieldKeysWithValidateFn.length; i++) {
           validation[fieldKeysWithValidateFn[i]] = validationResultsArray[i];
         }
         dispatch(s => {
