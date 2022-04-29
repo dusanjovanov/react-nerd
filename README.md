@@ -155,7 +155,7 @@ const TriggerValidationButton = () => {
 
 #### `setFieldValue: ({name: string, value?: any, shouldValidate?: boolean}) => void`
 
-#### `setFieldValidation: ({name: string}) => void`
+#### `setFieldValidation: ({name: string, validation: any}) => void`
 
 #### `setBlur: ({ name: string }) => void;`
 
