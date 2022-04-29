@@ -128,7 +128,7 @@ function createFieldStates<Values, FieldName extends keyof Values>(
   ) => State<Values>[FieldName]
 ) {
   const fieldStates: any = {};
-  for (let i = 0; i <= fieldNames.length; i++) {
+  for (let i = 0; i < fieldNames.length; i++) {
     const name = fieldNames[i];
     fieldStates[name] = cb(name, state[name]);
   }
