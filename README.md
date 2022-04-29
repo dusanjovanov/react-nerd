@@ -125,7 +125,9 @@ const FirstName = () => {
 };
 ```
 
-#### `useField: ({name: string, validate: (value: any) => any}) => {value, validation, setValue, setBlur}`
+```tsx
+useField: ({name: string, validate: (value: any) => any}) => {value, validation, setValue, setBlur}
+```
 
 # Imperative actions
 
