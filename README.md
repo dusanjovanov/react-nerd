@@ -180,6 +180,10 @@ type NewState<Values> = {
 
 #### `handleReset: (e?: any) => void`
 
+#### `setValues: ({values: Partial<Values>, shouldValidate?: boolean}) => void`
+
+#### `setValidation: ({validation: Partial<Validation>}) => void`
+
 # Accessing field state
 
 If you need the state of another field (value, validation), use the `useFieldState` hook returned from `createForm`
