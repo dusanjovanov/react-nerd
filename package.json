@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.1.0",
   "license": "MIT",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -34,7 +34,11 @@
     "trailingComma": "es5"
   },
   "name": "react-nerd",
-  "description": "Performant, minimal React form library",
+  "description": "🤓 Performant, minimal React form library",
+  "keywords": [
+    "react",
+    "form"
+  ],
   "repository": {
     "url": "https://github.com/dusanjovanov/react-nerd"
   },
