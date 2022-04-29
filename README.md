@@ -127,7 +127,7 @@ const FirstName = () => {
 };
 ```
 
-### `useField: ({name: string, validate: (value: any) => any}) => {value, validation, setValue, setBlur}`
+#### `useField: ({name: string, validate: (value: any) => any}) => {value, validation, setValue, setBlur}`
 
 # Imperative actions
 
@@ -153,19 +153,19 @@ const TriggerValidationButton = () => {
 
 ### List of all imperative actions
 
-### `setFieldValue: ({name: string, value?: any, shouldValidate?: boolean}) => void`
+#### `setFieldValue: ({name: string, value?: any, shouldValidate?: boolean}) => void`
 
-### `setFieldValidation: ({name: string}) => void`
+#### `setFieldValidation: ({name: string}) => void`
 
-### `setBlur: ({ name: string }) => void;`
+#### `setBlur: ({ name: string }) => void;`
 
-### `validateField: ({name: string}) => Promise<FieldValidation>`
+#### `validateField: ({name: string}) => Promise<FieldValidation>`
 
-### `validateAllFields: () => Promise<Validation>`
+#### `validateAllFields: () => Promise<Validation>`
 
-### `submitForm: () => Promise<any>`
+#### `submitForm: () => Promise<any>`
 
-### `resetForm: (newState?: Partial<NewState>) => void`
+#### `resetForm: (newState?: Partial<NewState>) => void`
 
 ```tsx
 type NewState<Values> = {
@@ -176,9 +176,9 @@ type NewState<Values> = {
 };
 ```
 
-### `handleSubmit: (e?: any) => void`
+#### `handleSubmit: (e?: any) => void`
 
-### `handleReset: (e?: any) => void`
+#### `handleReset: (e?: any) => void`
 
 # Accessing field state
 
@@ -199,7 +199,7 @@ const FirstName = () => {
 };
 ```
 
-### `useFieldState: ({name: string}) => FieldState`
+#### `useFieldState: ({name: string}) => FieldState`
 
 ```tsx
 type FieldState = {
@@ -245,17 +245,17 @@ const FormState = () => {
 
 ### List of hooks for accessing form state
 
-### `useValues: () => Values`
+#### `useValues: () => Values`
 
-### `useValidation: () => Validation`
+#### `useValidation: () => Validation`
 
-### `useIsDirty: () => boolean`
+#### `useIsDirty: () => boolean`
 
-### `useIsValid: () => boolean`
+#### `useIsValid: () => boolean`
 
-### `useIsSubmitting: () => boolean`
+#### `useIsSubmitting: () => boolean`
 
-### `useSubmitCount: () => number`
+#### `useSubmitCount: () => number`
 
 # Nested fields
 
@@ -321,19 +321,19 @@ const UserItem = React.memo(({ user, index }) => {
 
 ### List of exported helpers for field arrays
 
-### `prepend: <E>(array: E[], newElement: E) => E[]`
+#### `prepend: <E>(array: E[], newElement: E) => E[]`
 
-### `append: <E>(array: E[], newElement: any) => any[]`
+#### `append: <E>(array: E[], newElement: any) => any[]`
 
-### `remove: <E>(array: E[], index: number) => E[]`
+#### `remove: <E>(array: E[], index: number) => E[]`
 
-### `replace: <E>(array: E[], index: number, newElement: E) => E[]`
+#### `replace: <E>(array: E[], index: number, newElement: E) => E[]`
 
-### `insert: <E>(array: E[], index: number, newElement: E) => E[]`
+#### `insert: <E>(array: E[], index: number, newElement: E) => E[]`
 
-### `swap: <E>(array: E[], indexA: number, indexB: number) => E[]`
+#### `swap: <E>(array: E[], indexA: number, indexB: number) => E[]`
 
-### `move: <E>(array: E[], from: number, to: number) => E[]`
+#### `move: <E>(array: E[], from: number, to: number) => E[]`
 
 # Usage with Typescript
 
