@@ -1,5 +1,5 @@
-import * as React from 'react';
 import deepEqual from 'fast-deep-equal';
+import * as React from 'react';
 
 type Unwrap<T> = T extends Promise<infer U> ? U : T;
 
@@ -60,18 +60,14 @@ type FormActions<Values> = {
     validation: FieldValidation;
   }) => void;
   setBlur: <FieldName extends keyof Values>(args: { name: FieldName }) => void;
-  runFieldValidateFn: <FieldName extends keyof Values>(args: {
-    name: FieldName;
-    value: Values[FieldName];
-  }) => Promise<FieldValidation>;
   validateField: <FieldName extends keyof Values>(args: {
     name: FieldName;
-    value: Values[FieldName];
+    value?: Values[FieldName];
   }) => Promise<FieldValidation>;
   validateAllFields: () => Promise<Validation<Values>>;
-  handleSubmit: (e: any) => void;
-  handleReset: (e: any) => void;
-  submitForm: () => void;
+  handleSubmit: (e?: any) => void;
+  submitForm: () => Promise<any>;
+  handleReset: (e?: any) => void;
   resetForm: (newState?: {
     values?: Partial<Values>;
     validation?: Partial<Validation<Values>>;
@@ -97,25 +93,42 @@ function deepObjectSome(
   return result;
 }
 
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' &&
+  typeof window.document !== 'undefined' &&
+  typeof window.document.createElement !== 'undefined'
+    ? React.useLayoutEffect
+    : React.useEffect;
+
+function useEventCallback<T extends (...args: any[]) => any>(fn: T): T {
+  const ref: any = React.useRef(fn);
+
+  // we copy a ref to the callback scoped to the current state/props on each render
+  useIsomorphicLayoutEffect(() => {
+    ref.current = fn;
+  });
+
+  return React.useCallback(
+    (...args: any[]) => ref.current.apply(void 0, args),
+    []
+  ) as T;
+}
+
 export function createForm<Values>({
   initialValues,
 }: {
   initialValues: Values;
 }) {
-  const [fieldContexts, initialFieldState] = Object.entries(
-    initialValues
-  ).reduce(
-    (p, [name, value]) => {
-      const context = React.createContext({});
-      context.displayName = `${name}`;
-      p[0][name] = context;
-      p[1][name] = {
-        value,
-      };
-      return p;
-    },
-    [{}, {}] as any
-  );
+  const fieldContexts: any = {};
+  const initialFieldState = {} as FieldState<Values>;
+  for (const [name, value] of Object.entries<any>(initialValues)) {
+    const context = React.createContext({});
+    context.displayName = `${name}`;
+    (fieldContexts as any)[name] = context;
+    (initialFieldState as any)[name] = {
+      value,
+    };
+  }
 
   const actionsContext = React.createContext<FormActions<Values>>(
     {} as FormActions<Values>
@@ -135,8 +148,6 @@ export function createForm<Values>({
   initialValuesContext.displayName = 'ReactNerdInitialValues';
   const calculateIsValidContext = React.createContext(calculateIsValid);
   calculateIsValidContext.displayName = 'ReactNerdCalculateIsValid';
-
-  const stub = () => {};
 
   function createValues(state: State<Values>) {
     const values: Values = {} as Values;
@@ -168,23 +179,15 @@ export function createForm<Values>({
     validateOnBlur = true,
     validateOnMount = false,
   }: FormProviderProps<Values>) {
-    const [[state, effect], dispatch] = React.useReducer(
-      (
-        [state]: [State<Values>, (state: State<Values>) => void],
-        cb: (
-          state: State<Values>
-        ) => [State<Values>, (state: State<Values>) => void]
-      ) => {
+    const [state, dispatch] = React.useReducer(
+      (state: State<Values>, cb: (state: State<Values>) => State<Values>) => {
         return cb(state);
       },
-      [
-        {
-          ...initialFieldState,
-          isSubmitting: false,
-          submitCount: 0,
-        },
-        stub,
-      ]
+      {
+        ...initialFieldState,
+        isSubmitting: false,
+        submitCount: 0,
+      }
     );
 
     const validateOnChangeRef = React.useRef(validateOnChange);
@@ -198,240 +201,253 @@ export function createForm<Values>({
       onSubmitRef.current = onSubmit;
     }, [validateOnChange, validateOnBlur, onSubmit]);
 
-    const newestState = React.useRef<State<Values>>(state);
-
     const fields = React.useRef<any>({});
 
     const validationRuns = React.useRef<any>({});
 
-    React.useEffect(() => {
-      newestState.current = state;
-      if (typeof effect === 'function') effect(state);
-    }, [state, effect]);
-
-    React.useEffect(() => {
-      if (validateOnMount) {
-        actions.current.validateAllFields();
-      }
-    }, [validateOnMount]);
-
-    const actions: React.MutableRefObject<FormActions<Values>> = React.useRef<
-      FormActions<Values>
-    >({
-      setFieldValue: ({ name, setValue, shouldValidate = true }) => {
-        dispatch(s => [
-          {
-            ...s,
-            [name]: { ...s[name], value: setValue(s[name].value) },
-          },
-          s => {
-            const willValidate =
-              shouldValidate === undefined
-                ? validateOnChangeRef.current
-                : shouldValidate;
-            if (willValidate) {
-              actions.current.validateField({
-                name,
-                value: (s as any)[name].value,
-              });
-            }
-          },
-        ]);
-      },
-      setFieldValidation: ({ name, validation }) => {
-        dispatch(s => [
+    const setFieldValidation = React.useCallback(
+      <FieldName extends keyof Values>({
+        name,
+        validation,
+      }: {
+        name: FieldName;
+        validation: FieldValidation;
+      }) => {
+        dispatch(s =>
           deepEqual(s[name].validation, validation)
             ? s
             : {
                 ...s,
                 [name]: { ...s[name], validation },
-              },
-          stub,
-        ]);
+              }
+        );
       },
-      setBlur: ({ name }) => {
-        if (validateOnBlurRef.current) {
-          actions.current.validateField({
-            name,
-            value: (newestState.current as any)[name].value,
-          });
+      []
+    );
+
+    const runFieldValidateFn = async <FieldName extends keyof Values>({
+      name,
+      value,
+    }: {
+      name: FieldName;
+      value: Values[FieldName];
+    }) => {
+      try {
+        if (typeof fields.current[name]?.beforeValidate === 'function') {
+          fields.current[name].beforeValidate(value);
         }
-      },
-      runFieldValidateFn: async ({ name, value }) => {
-        try {
-          if (typeof fields.current[name].beforeValidate === 'function') {
-            fields.current[name].beforeValidate(value);
-          }
-          const result = await fields.current[name].validate(value);
-          if (typeof fields.current[name].afterValidate === 'function') {
-            fields.current[name].afterValidate(value);
-          }
-          return result;
-        } catch (err) {
-          console.error(
-            `[ReactNerd] Error caught while calling validate function of field: "${name}"`
-          );
-          console.error(err);
+        const result = await fields.current[name].validate(value);
+        if (typeof fields.current[name]?.afterValidate === 'function') {
+          fields.current[name].afterValidate(value);
         }
-      },
-      validateField: async ({ name, value }) => {
-        if (typeof fields.current[name].validate === 'function') {
+        return result;
+      } catch (err) {
+        console.error(
+          `[ReactNerd] Error caught while calling validate function of field: "${name}"`
+        );
+        console.error(err);
+      }
+    };
+
+    const validateField = useEventCallback(
+      async <FieldName extends keyof Values>({
+        name,
+        value = (state as any)[name].value,
+      }: {
+        name: FieldName;
+        value?: Values[FieldName];
+      }) => {
+        if (typeof fields.current[name]?.validate === 'function') {
           const id = {};
           validationRuns.current[name] = id;
-          const validation = await actions.current.runFieldValidateFn({
+          const validation = await runFieldValidateFn({
             name,
             value,
           });
           // if it is not equal, means it's been cancelled
           if (validationRuns.current[name] !== id) return;
-          actions.current.setFieldValidation({ name, validation });
+          setFieldValidation({ name, validation });
           return validation;
         }
+      }
+    );
+
+    // const { 1: startTransition } = React.useTransition();
+
+    const setFieldValue = useEventCallback(
+      <FieldName extends keyof Values>({
+        name,
+        setValue,
+        shouldValidate = true,
+      }: {
+        name: FieldName;
+        setValue: (
+          value: State<Values>[FieldName]['value']
+        ) => Values[FieldName];
+        shouldValidate?: boolean;
+      }) => {
+        const newValue = setValue(state[name].value);
+        dispatch(s => ({
+          ...s,
+          [name]: { ...s[name], value: newValue },
+        }));
+        const willValidate =
+          shouldValidate === undefined
+            ? validateOnChangeRef.current
+            : shouldValidate;
+        if (willValidate) {
+          validateField({ name, value: newValue });
+        }
+      }
+    );
+
+    const setBlur = React.useCallback(
+      <FieldName extends keyof Values>({ name }: { name: FieldName }) => {
+        if (validateOnBlurRef.current) {
+          validateField({
+            name,
+          });
+        }
       },
-      validateAllFields: async () => {
-        const fieldKeysWithValidateFn = Object.keys(fields.current).filter(
-          name => typeof fields.current[name].validate === 'function'
-        );
-        const promises: Promise<any>[] = fieldKeysWithValidateFn.map(name =>
-          fields.current[name].validate(
-            (newestState.current as any)[name].value
-          )
-        );
+      [validateField]
+    );
+
+    const validateAllFields = useEventCallback(async () => {
+      const fieldKeysWithValidateFn = Object.keys(fields.current).filter(
+        name => typeof fields.current[name]?.validate === 'function'
+      );
+      const promises: Promise<any>[] = fieldKeysWithValidateFn.map(name =>
+        fields.current[name].validate((state as any)[name].value)
+      );
+      try {
         const validationResultsArray = await Promise.all(promises);
-        const validation = fieldKeysWithValidateFn.reduce((p, name, i) => {
-          const v = validationResultsArray[i];
-          p[name] = v;
-          return p;
-        }, {} as any);
+        const validation: any = {};
+        for (let i = 0; i++; i < fieldKeysWithValidateFn.length) {
+          validation[fieldKeysWithValidateFn[i]] = validationResultsArray[i];
+        }
         dispatch(s => {
-          const fieldModels = Object.keys(validation).reduce((p, name) => {
+          const fieldModels: any = {};
+          for (const name of Object.keys(validation)) {
             const currentFieldState = (s as any)[name];
             if (!deepEqual(currentFieldState.validation, validation[name])) {
-              p[name] = {
+              fieldModels[name] = {
                 ...currentFieldState,
                 validation: validation[name],
               };
             }
-            return p;
-          }, {} as any);
-          return [
-            {
-              ...s,
-              ...fieldModels,
-            },
-            stub,
-          ];
+          }
+          return {
+            ...s,
+            ...fieldModels,
+          };
         });
         return validation;
-      },
-      handleSubmit: e => {
-        if (e && e.preventDefault && typeof e.preventDefault === 'function') {
-          e.preventDefault();
-        }
-        if (e && e.stopPropagation && typeof e.stopPropagation === 'function') {
-          e.stopPropagation();
-        }
-        actions.current.submitForm();
-      },
-      handleReset: e => {
-        if (e && e.preventDefault && typeof e.preventDefault === 'function') {
-          e.preventDefault();
-        }
-        if (e && e.stopPropagation && typeof e.stopPropagation === 'function') {
-          e.stopPropagation();
-        }
-        actions.current.resetForm();
-      },
-      submitForm: async () => {
-        dispatch(s => [
-          {
-            ...s,
-            isSubmitting: true,
-            submitCount: s.submitCount + 1,
-          },
-          stub,
-        ]);
-        const validation = await actions.current.validateAllFields();
-        const isValid = calculateIsValid(validation);
-        if (isValid) {
-          try {
-            return onSubmitRef.current(
-              createValues(newestState.current) as Values
-            );
-          } catch (err) {
-            console.error(
-              `[ReactNerd] Error caught while calling the onSubmit callback`
-            );
-            console.error(err);
-          } finally {
-            dispatch(s => [
-              {
-                ...s,
-                isSubmitting: false,
-              },
-              stub,
-            ]);
-          }
-        }
-        dispatch(s => [
-          {
-            ...s,
-            isSubmitting: false,
-          },
-          stub,
-        ]);
-      },
-      resetForm: newState => {
-        const [newFieldsState, newValues] = Object.keys(initialValues).reduce(
-          ([s, v], name) => {
-            const value =
-              newState?.values && name in newState.values
-                ? (newState.values as any)[name]
-                : (initialValuesRef.current as any)[name];
-            const validation =
-              newState?.validation && name in newState.validation
-                ? (newState.validation as any)[name]
-                : undefined;
-            s[name] = {
-              value,
-              validation,
-            };
-            v[name] = value;
-            return [s, v];
-          },
-          [{}, {}] as any
+      } catch (err) {
+        console.error(
+          `[ReactNerd] Error caught in a validate function while calling validateAllFields"`
         );
-        initialValuesRef.current = newValues;
-        dispatch(s => [
-          {
-            ...s,
-            ...newFieldsState,
-            submitCount:
-              typeof newState?.submitCount === 'number'
-                ? newState.submitCount
-                : 0,
-            isSubmitting: !!newState?.isSubmitting,
-          },
-          stub,
-        ]);
-      },
+        console.error(err);
+      }
     });
 
-    function buildFieldProviderTree(children: React.ReactNode) {
-      return Object.entries<any>(fieldContexts).reduceRight(
-        (tree, [name, context]) => {
-          tree = React.createElement(
-            context.Provider,
-            {
-              value: state[name as keyof Values],
-            },
-            tree
+    React.useEffect(() => {
+      if (validateOnMount) {
+        validateAllFields();
+      }
+    }, [validateOnMount, validateAllFields]);
+
+    const submitForm = useEventCallback(async () => {
+      dispatch(s => ({
+        ...s,
+        isSubmitting: true,
+        submitCount: s.submitCount + 1,
+      }));
+      const validation = await validateAllFields();
+      const isValid = calculateIsValid(validation);
+      if (isValid) {
+        try {
+          return onSubmitRef.current(createValues(state));
+        } catch (err) {
+          console.error(
+            `[ReactNerd] Error caught while calling the onSubmit callback`
           );
-          return tree;
-        },
-        children
-      );
-    }
+          console.error(err);
+        } finally {
+          dispatch(s => ({
+            ...s,
+            isSubmitting: false,
+          }));
+        }
+      }
+      dispatch(s => ({
+        ...s,
+        isSubmitting: false,
+      }));
+    });
+
+    const handleSubmit = React.useCallback(
+      (e?: any) => {
+        if (e && e.preventDefault && typeof e.preventDefault === 'function') {
+          e.preventDefault();
+        }
+        if (e && e.stopPropagation && typeof e.stopPropagation === 'function') {
+          e.stopPropagation();
+        }
+        submitForm();
+      },
+      [submitForm]
+    );
+
+    const resetForm = React.useCallback(
+      (newState?: {
+        values?: Partial<Values>;
+        validation?: Partial<Validation<Values>>;
+        isSubmitting?: boolean;
+        submitCount?: number;
+      }) => {
+        const newFieldsState: any = {};
+        const newValues: any = {};
+        for (const name of Object.keys(initialValues)) {
+          const value =
+            newState?.values && name in newState.values
+              ? (newState.values as any)[name]
+              : (initialValuesRef.current as any)[name];
+          const validation =
+            newState?.validation && name in newState.validation
+              ? (newState.validation as any)[name]
+              : undefined;
+          newFieldsState[name] = {
+            value,
+            validation,
+          };
+          newValues[name] = value;
+        }
+        initialValuesRef.current = newValues;
+        dispatch(s => ({
+          ...s,
+          ...newFieldsState,
+          submitCount:
+            typeof newState?.submitCount === 'number'
+              ? newState.submitCount
+              : 0,
+          isSubmitting: !!newState?.isSubmitting,
+        }));
+      },
+      []
+    );
+
+    const handleReset = React.useCallback(
+      (e?: any) => {
+        if (e && e.preventDefault && typeof e.preventDefault === 'function') {
+          e.preventDefault();
+        }
+        if (e && e.stopPropagation && typeof e.stopPropagation === 'function') {
+          e.stopPropagation();
+        }
+        resetForm();
+      },
+      [resetForm]
+    );
 
     const register = React.useCallback(
       <FieldName extends keyof Values>(name: FieldName, reg: any) => {
@@ -440,11 +456,51 @@ export function createForm<Values>({
       []
     );
 
+    const actions = React.useMemo(
+      () => ({
+        setFieldValue,
+        setFieldValidation,
+        setBlur,
+        validateField,
+        validateAllFields,
+        handleSubmit,
+        submitForm,
+        handleReset,
+        resetForm,
+      }),
+      [
+        setFieldValue,
+        setFieldValidation,
+        setBlur,
+        validateField,
+        validateAllFields,
+        handleSubmit,
+        submitForm,
+        handleReset,
+        resetForm,
+      ]
+    );
+
+    function buildFieldProviderTree(children: React.ReactNode) {
+      const entries: any = Object.entries(fieldContexts);
+      let tree = children;
+      for (let i = entries.length - 1; i >= 0; i--) {
+        tree = React.createElement(
+          entries[i][1].Provider,
+          {
+            value: state[entries[i][0] as keyof Values],
+          },
+          tree
+        );
+      }
+      return tree;
+    }
+
     return (
       <stateContext.Provider value={state}>
         <initialValuesContext.Provider value={initialValuesRef.current}>
           <registerContext.Provider value={register}>
-            <actionsContext.Provider value={actions.current}>
+            <actionsContext.Provider value={actions}>
               <isSubmittingContext.Provider value={state.isSubmitting}>
                 <submitCountContext.Provider value={state.submitCount}>
                   {buildFieldProviderTree(children)}
@@ -573,44 +629,44 @@ export function createForm<Values>({
   };
 }
 
-export const prepend = (array: any[], newElement: any) => {
+export function prepend<E>(array: E[], newElement: E): E[] {
   return [newElement, ...array];
-};
+}
 
-export const append = (array: any[], newElement: any) => {
+export function append<E>(array: E[], newElement: E): E[] {
   return [...array, newElement];
-};
+}
 
-export const remove = (array: any[], index: number) => {
+export function remove<E>(array: E[], index: number): E[] {
   const copy = [...array];
   copy.splice(index, 1);
   return copy;
-};
+}
 
-export const replace = (array: any[], index: number, newElement: any) => {
+export function replace<E>(array: E[], index: number, newElement: E): E[] {
   const copy = [...array];
   copy[index] = newElement;
   return copy;
-};
+}
 
-export const insert = (array: any[], index: number, newElement: any) => {
+export function insert<E>(array: E[], index: number, newElement: E): E[] {
   const copy = [...array];
   copy.splice(index, 0, newElement);
   return copy;
-};
+}
 
-export const swap = (array: any[], indexA: number, indexB: number) => {
+export function swap<E>(array: E[], indexA: number, indexB: number): E[] {
   const copy = [...array];
   const a = copy[indexA];
   copy[indexA] = copy[indexB];
   copy[indexB] = a;
   return copy;
-};
+}
 
-export const move = (array: any[], from: number, to: number) => {
+export function move<E>(array: E[], from: number, to: number): E[] {
   const copy = [...array];
   const value = copy[from];
   copy.splice(from, 1);
   copy.splice(to, 0, value);
   return copy;
-};
+}
