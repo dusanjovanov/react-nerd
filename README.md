@@ -72,7 +72,7 @@ const Form = () => {
   );
 };
 
-// wrap form with FormProvider
+// wrap Form with FormProvider so it can call useFormActions
 
 const FormPage = () => {
   const onSubmit = values => {
@@ -93,6 +93,13 @@ const FormPage = () => {
 
 This library doesn't support validation schemas out of the box, and it only has field level validation via the `validate` function. We believe that is enough.
 
+You should return either a boolean or some object whose leaf nodes are boolean from the `validate` function.
+
+When this library calculates `isValid` it checks whether any of the leaf nodes in the validation state are `false`, and if so, the form is not valid.
+
+So, in general, you shouldn't return error message strings from the `validate` function like you would do in Formik,
+but rather calculate the error message from the validation result in the render of the component like in the example below.
+
 You can use the nifty library [fun-validation](https://github.com/dusanjovanov/fun-validation)
 
 ```tsx
@@ -101,10 +108,11 @@ import { isStringLongerThan } from 'fun-validation';
 const FirstName = () => {
   const { value, setValue, validation } = useField({
     name: 'firstName',
+    // whatever you return from the validate function, you will get back from useField
     validate: value => isStringLongerThan(0)(value),
   });
 
-  const error = validation === false ? undefined : 'Required';
+  const error = validation === false ? 'Required' : undefined;
 
   return (
     <div>
@@ -118,6 +126,8 @@ const FirstName = () => {
   );
 };
 ```
+
+### useField: ({name: string, validate: (value: any) => any}) => {value, validation, setValue, setBlur}
 
 # Imperative actions
 
@@ -141,6 +151,35 @@ const TriggerValidationButton = () => {
 };
 ```
 
+## List of all imperative actions
+
+### setFieldValue: ({name: string, value?: any, shouldValidate?: boolean}) => void
+
+### setFieldValidation: ({name: string}) => void
+
+### setBlur: ({ name: string }) => void;
+
+### validateField: ({name: string}) => Promise<FieldValidation>
+
+### validateAllFields: () => Promise<Validation>
+
+### submitForm: () => Promise<any>
+
+### resetForm: (newState?: Partial<NewState>) => void
+
+```tsx
+type NewState<Values> = {
+  values: Partial<Values>;
+  validation: Partial<Validation>;
+  isSubmitting: boolean;
+  submitCount: number;
+};
+```
+
+### handleSubmit: (e?: any) => void
+
+### handleReset: (e?: any) => void
+
 # Accessing field state
 
 If you need the state of another field (value, validation), use the `useFieldState` hook returned from `createForm`
@@ -157,6 +196,15 @@ const FirstName = () => {
   return (
     <input type="text" value={value} onChange={e => setValue(e.target.value)} />
   );
+};
+```
+
+### useFieldState: ({name: string}) => FieldState
+
+```tsx
+type FieldState = {
+  value: any;
+  validation: any;
 };
 ```
 
@@ -194,6 +242,98 @@ const FormState = () => {
     */}</div>;
 };
 ```
+
+## List of hooks for accessing form state
+
+### useValues: () => Values
+
+### useValidation: () => Validation
+
+### useIsDirty: () => boolean
+
+### useIsValid: () => boolean
+
+### useIsSubmitting: () => boolean
+
+### useSubmitCount: () => number
+
+# Nested fields
+
+This is how you would implement an array of text fields
+
+```tsx
+import { createForm, append, remove } from 'react-nerd';
+
+const { useField } = createForm({
+  initialValues: {
+    users: ['Frank', 'James'],
+  },
+});
+
+// the field array component
+const Users = () => {
+  const { value: users, setValue } = useField({ name: 'users' });
+
+  const addUser = () => {
+    setValue(append(users, 'New user'));
+  };
+
+  return (
+    <div>
+      <ul>
+        {users.map((user, index) => (
+          <UserItem key={index} user={user} index={index} />
+        ))}
+      </ul>
+      <button onClick={addUser}>Add user</button>
+    </div>
+  );
+};
+
+// you should always memoize an item component in a dynamic list
+const UserItem = React.memo(({ user, index }) => {
+  const { setFieldValue } = useFormActions();
+
+  // notice how the UserItem component nowhere depends on the
+  // value of the whole array, and that's why the memoization will work
+  const updateUser = (user: string) => {
+    setFieldValue({
+      name: "users",
+      setValue: (users) => replace(users, index, user)
+    })
+  }
+
+  const removeUser = () => {
+    setFieldValue({
+      name: 'users',
+      setValue: users => remove(users, index),
+    });
+  };
+
+  return (
+    <li>
+      <input type="text" value={user} onChange={e => updateUser(e.target.value)}>
+      <button onClick={removeUser}>Remove user</button>
+    </li>
+  );
+});
+```
+
+## List of exported helpers for field arrays
+
+### prepend: <E>(array: E[], newElement: E) => E[]
+
+### append: <E>(array: E[], newElement: any) => any[]
+
+### remove: <E>(array: E[], index: number) => E[]
+
+### replace: <E>(array: E[], index: number, newElement: E) => E[]
+
+### insert: <E>(array: E[], index: number, newElement: E) => E[]
+
+### swap: <E>(array: E[], indexA: number, indexB: number) => E[]
+
+### move: <E>(array: E[], from: number, to: number) => E[]
 
 # Usage with Typescript
 
